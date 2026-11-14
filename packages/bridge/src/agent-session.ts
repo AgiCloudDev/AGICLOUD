@@ -118,7 +118,9 @@ export class AgentSession {
     });
     this.proc = proc;
     proc.stderr!.on('data', (chunk: Buffer) => {
-      this.stderrTail = (this.stderrTail + chunk.toString()).slice(-STDERR_TAIL);
+      const text = chunk.toString();
+      this.stderrTail = (this.stderrTail + text).slice(-STDERR_TAIL);
+      this.checkStderr(text);
     });
     const exited = new Promise<never>((_, reject) => {
       proc.once('error', (err) => reject(new Error(`${this.agent.label}: avvio fallito (${err.message})`)));
@@ -204,7 +206,7 @@ export class AgentSession {
     } else {
       this._sessionId = resumeId!;
     }
-    this._configOptions = opened?.configOptions ?? [];
+    this._configOptions = withExtraModels(opened?.configOptions ?? [], this.agent);
     return { init, sessionId: this._sessionId!, origin, resumeError, configOptions: this._configOptions };
   }
 
@@ -287,8 +289,8 @@ export class AgentSession {
   }
 
   private setConfig(options: acp.SessionConfigOption[]): void {
-    this._configOptions = options;
-    this.opts.onConfigOptions?.(options);
+    this._configOptions = withExtraModels(options, this.agent);
+    this.opts.onConfigOptions?.(this._configOptions);
   }
 
   private endRun(run: ActiveRun, final: BaseEvent): void {
@@ -298,6 +300,23 @@ export class AgentSession {
     this.cancelPendingPermissions();
     this.current = null;
     run.queue.close();
+  }
+
+  private stderrLine = '';
+
+  /** Errori che l'agente scrive solo su stderr: chiudono il turno invece di lasciarlo appeso */
+  private checkStderr(text: string): void {
+    const detect = this.agent.stderrError;
+    if (!detect) return;
+    const lines = (this.stderrLine + text).split('\n');
+    this.stderrLine = lines.pop()!.slice(-STDERR_TAIL);
+    for (const line of lines) {
+      const message = detect(line);
+      if (message && this.current) {
+        this.cancel().catch(() => {});
+        this.failRun(message);
+      }
+    }
   }
 
   private failRun(message: string): void {
@@ -320,6 +339,21 @@ export class AgentSession {
     for (const resolve of this.pendingPermissions.values()) resolve({ outcome: { outcome: 'cancelled' } });
     this.pendingPermissions.clear();
   }
+}
+
+/** Aggiunge al selettore del modello quelli della spec che l'agente non elenca */
+export function withExtraModels(options: acp.SessionConfigOption[], agent: AgentSpec): acp.SessionConfigOption[] {
+  const extra = agent.extraModels;
+  if (!extra?.length) return options;
+  return options.map((o) => {
+    const opt = o as acp.SessionConfigOption & { options?: unknown[] };
+    if ((o.category !== 'model' && o.id !== 'model') || !Array.isArray(opt.options)) return o;
+    const known = new Set(JSON.stringify(opt.options).match(/"value":"[^"]*"/g) ?? []);
+    const flat = opt.options.every((x) => typeof x === 'object' && x !== null && 'value' in x);
+    if (!flat) return o;
+    const missing = extra.filter((m) => !known.has(`"value":${JSON.stringify(m.value)}`));
+    return missing.length ? ({ ...o, options: [...opt.options, ...missing] } as acp.SessionConfigOption) : o;
+  });
 }
 
 // ACP: "auth_required" = -32000; alcuni agenti lo usano anche per credenziali mancanti

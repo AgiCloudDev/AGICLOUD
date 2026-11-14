@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Catalogo degli agenti che sappiamo avviare in modalita' ACP.
@@ -16,23 +19,53 @@ export interface AgentSpec {
   authMethod?: string;
   /** Variabili d'ambiente da togliere sempre: cambierebbero il login dell'agente */
   envBlock?: string[];
+  /** Riconosce in una riga di stderr un errore che l'agente non riporta via ACP (il turno resterebbe appeso) */
+  stderrError?: (line: string) => string | undefined;
+  /** Modelli da aggiungere al selettore se l'agente non li elenca ancora (es. appena usciti) */
+  extraModels?: { value: string; name: string; description?: string }[];
+}
+
+// OpenCode: se il fornitore del modello risponde con un errore (es. quota gratuita finita)
+// lo scrive solo nel log e non chiude il turno ACP. Con --print-logs il log arriva su stderr.
+export function opencodeStderrError(line: string): string | undefined {
+  if (!line.includes('level=ERROR') || !line.includes('message="stream error"')) return undefined;
+  const m = line.match(/error\.error="((?:[^"\\]|\\.)*)"/);
+  const detail = (m?.[1] ?? 'errore del fornitore del modello').replace(/^AI_APICallError:\s*/, '');
+  const model = line.match(/modelID=(\S+)/)?.[1];
+  return model ? `OpenCode (${model}): ${detail}` : `OpenCode: ${detail}`;
+}
+
+/**
+ * OpenCode: OPENCODE_BIN se impostato, poi quello dell'installer ufficiale (~/.opencode/bin, si aggiorna da solo),
+ * altrimenti dal PATH. Due versioni diverse condividono lo stesso database: la piu' vecchia, dopo che la nuova
+ * lo ha aggiornato, non parte piu' ("no such column"). Si ricalcola a ogni uso.
+ */
+export function opencodeBin(): string {
+  if (process.env.OPENCODE_BIN) return process.env.OPENCODE_BIN;
+  const local = join(homedir(), '.opencode', 'bin', process.platform === 'win32' ? 'opencode.exe' : 'opencode');
+  return existsSync(local) ? local : 'opencode';
 }
 
 export const AGENTS: Record<string, AgentSpec> = {
   opencode: {
     id: 'opencode',
     label: 'OpenCode',
-    command: 'opencode',
-    args: ['acp'],
+    get command() {
+      return opencodeBin();
+    },
+    args: ['acp', '--print-logs'],
     native: true,
+    stderrError: opencodeStderrError,
   },
   claude: {
     id: 'claude',
     label: 'Claude Code',
     // Adattatore ufficiale ACP sopra il Claude Agent SDK (usa il login di `claude`)
     command: 'npx',
-    args: ['-y', '@agentclientprotocol/claude-agent-acp@0.86.0'],
+    args: ['-y', '@agentclientprotocol/claude-agent-acp@0.102.0'],
     native: false,
+    // L'elenco che arriva dall'account puo' restare indietro: i modelli nuovi si scelgono comunque per id
+    extraModels: [{ value: 'claude-fable-5-2', name: 'Fable 5.2', description: 'Claude Fable 5.2' }],
     // Con una chiave API nell'ambiente Claude Code fatturerebbe sull'API invece dell'abbonamento
     // Variabili di una sessione Claude Code "madre": il Claude della chat deve partire come uno normale
     envBlock: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_MESSAGING_SOCKET', 'CLAUDE_CODE_MESSAGING_TOKEN', 'CLAUDE_CODE_SESSION_ATTENDED', 'CLAUDE_CODE_EXECPATH'],

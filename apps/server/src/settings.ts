@@ -307,9 +307,9 @@ export class Settings {
         }
       }
       case 'opencode': {
-        const version = await run('opencode', ['--version'], env);
+        const version = await run(AGENTS.opencode.command, ['--version'], env);
         if (version === null) return { installed: false, version: null, login: { state: 'unknown', detail: 'opencode non installato' } };
-        const out = stripAnsi((await run('opencode', ['auth', 'list'], env)) ?? '');
+        const out = stripAnsi((await run(AGENTS.opencode.command, ['auth', 'list'], env)) ?? '');
         const n = Number(/(\d+)\s+credentials?/.exec(out)?.[1] ?? 0);
         return {
           installed: true,
