@@ -26,8 +26,9 @@ WORKDIR /opt/agicloud
 COPY --from=build /opt/agicloud /opt/agicloud
 # Tutto quello che l'utente scrive sta in /data (unico volume; il resto del filesystem e' in sola lettura)
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3095 TRUST_PROXY=1 DATA_DIR=/data/state HOME=/data/home \
-    WORKSPACES_ROOT=/data/progetti PROJECT_ROOTS=/data/progetti:/data/home PATH=/data/home/.local/bin:/opt/video-tools/bin:/usr/local/bin:/usr/bin:/bin \
+    PATH=/data/home/.local/bin:/opt/video-tools/bin:/usr/local/bin:/usr/bin:/bin \
     IMAGEIO_FFMPEG_EXE=/usr/bin/ffmpeg TMPDIR=/data/tmp BROWSER_BIN=/usr/bin/chromium BROWSER_IN_CONTAINER=1
 USER agicloud
 EXPOSE 3095
-CMD ["sh", "-c", "mkdir -p /data/state /data/progetti /data/home /data/tmp && exec node --import tsx apps/server/src/index.ts"]
+# Cartella dei progetti: /data/projects; gli ambienti nati prima tengono la loro /data/progetti (i percorsi delle conversazioni restano validi)
+CMD ["sh", "-c", "P=/data/projects; [ -d /data/progetti ] && P=/data/progetti; mkdir -p /data/state $P /data/home /data/tmp && WORKSPACES_ROOT=$P PROJECT_ROOTS=$P:/data/home exec node --import tsx apps/server/src/index.ts"]

@@ -17,7 +17,7 @@ import { Push } from './push.js';
 import { createEntry, deleteEntry, listDir, rawFile, readText, renameEntry, uploadInto, writeText } from './files.js';
 import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
-import { INSTALL_COMMANDS, LOGIN_COMMANDS, Settings } from './settings.js';
+import { agyBin, INSTALL_COMMANDS, LOGIN_COMMANDS, Settings } from './settings.js';
 import { GuidedLogins } from './logins.js';
 import { agentUsage } from './usage.js';
 import { homedir } from 'node:os';
@@ -529,10 +529,20 @@ app.post('/api/push/test', async (c) => {
 // ── Terminali ────────────────────────────────────────────────────────────────
 app.get('/api/terminals', (c) => c.json(terminals.list()));
 
+const TERMINAL_COMMANDS: Record<string, () => string> = {
+  claude: () => 'claude',
+  agy: () => agyBin(),
+  opencode: () => 'opencode',
+  codex: () => 'codex',
+  'cursor-agent': () => 'cursor-agent',
+  'git status': () => 'git status',
+  'pm2 logs --lines 50': () => 'pm2 logs --lines 50',
+};
+
 app.post('/api/terminals', async (c) => {
   const body = await jsonBody(c);
-  const command = body.command === 'claude' ? 'claude' : undefined; // solo comandi noti
-  const t = terminals.create(String(body.cwd ?? ''), command);
+  const preset = typeof body.command === 'string' ? TERMINAL_COMMANDS[body.command] : undefined;
+  const t = terminals.create(String(body.cwd ?? ''), preset?.());
   return c.json(t.summary(), 201);
 });
 

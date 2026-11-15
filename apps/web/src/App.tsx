@@ -121,8 +121,8 @@ export function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [dialog, setDialog] = useState<'thread' | 'terminal' | null>(null);
   const [terminalCwd, setTerminalCwd] = useState<string>();
-  /** Comando rapido scelto dalla dashboard: preimposta il dialogo del terminale */
-  const [terminalPreset, setTerminalPreset] = useState(false);
+  /** Comando rapido scelto dalla dashboard: preimposta il comando del terminale */
+  const [terminalCommand, setTerminalCommand] = useState<string>();
   const [dialogError, setDialogError] = useState<string>();
   /** Skill/design system scelti dalla galleria Design per la nuova conversazione */
   const [designPreset, setDesignPreset] = useState<DesignChoice | null>(null);
@@ -239,13 +239,13 @@ export function App() {
   const closeDialog = () => {
     setDialog(null);
     setDialogError(undefined);
-    setTerminalPreset(false);
+    setTerminalCommand(undefined);
   };
 
   const openNew = () => {
     if (route.section === 'terminal') {
       setTerminalCwd(undefined);
-      setTerminalPreset(false);
+      setTerminalCommand(undefined);
       setDialog('terminal');
     } else {
       setDesignPreset(null);
@@ -253,10 +253,10 @@ export function App() {
     }
   };
 
-  /** Comando rapido dalla dashboard: apre il dialogo con "claude" preimpostato se serve */
-  const openTerminalPreset = (claude: boolean) => {
+  /** Comando rapido dalla dashboard: apre il dialogo con il comando scelto */
+  const openTerminalPreset = (cmd: string) => {
     setTerminalCwd(undefined);
-    setTerminalPreset(claude);
+    setTerminalCommand(cmd || undefined);
     setDialog('terminal');
   };
 
@@ -275,7 +275,7 @@ export function App() {
     }
   };
 
-  const createTerminal = async (cwd: string, command?: 'claude') => {
+  const createTerminal = async (cwd: string, command?: string) => {
     setCreating(true);
     setDialogError(undefined);
     try {
@@ -360,14 +360,14 @@ export function App() {
     { title: t('app.starterRefactoring'), badge: t('app.badgeQualita'), desc: t('app.descRefactoring') },
     { title: t('app.starterTest'), badge: t('app.badgeTest'), desc: t('app.descTest') },
   ];
-  /** Comandi pronti della dashboard terminale: click = dialogo con preset */
-  const terminalStarters: { title: string; badge: string; desc: string; cmd: string; claude: boolean }[] = [
-    { title: 'Claude Code', badge: t('app.badgeAgente'), desc: t('app.descClaude'), cmd: 'claude', claude: true },
-    { title: 'agy / Antigravity', badge: t('app.badgeAgente'), desc: t('app.descAgy'), cmd: 'agy', claude: false },
-    { title: 'OpenCode', badge: t('app.badgeAgente'), desc: t('app.descOpencode'), cmd: 'opencode', claude: false },
-    { title: t('app.cmdShell'), badge: t('app.badgeShell'), desc: t('app.descShell'), cmd: '', claude: false },
-    { title: 'Git status', badge: t('app.badgeGit'), desc: t('app.descGit'), cmd: 'git status', claude: false },
-    { title: t('app.cmdLogs'), badge: t('app.badgeServer'), desc: t('app.descLogs'), cmd: 'pm2 logs --lines 50', claude: false },
+  /** Comandi pronti della dashboard terminale: click = dialogo con comando preimpostato */
+  const terminalStarters: { title: string; badge: string; desc: string; cmd: string }[] = [
+    { title: 'Claude Code', badge: t('app.badgeAgente'), desc: t('app.descClaude'), cmd: 'claude' },
+    { title: 'agy / Antigravity', badge: t('app.badgeAgente'), desc: t('app.descAgy'), cmd: 'agy' },
+    { title: 'OpenCode', badge: t('app.badgeAgente'), desc: t('app.descOpencode'), cmd: 'opencode' },
+    { title: t('app.cmdShell'), badge: t('app.badgeShell'), desc: t('app.descShell'), cmd: '' },
+    { title: 'Git status', badge: t('app.badgeGit'), desc: t('app.descGit'), cmd: 'git status' },
+    { title: t('app.cmdLogs'), badge: t('app.badgeServer'), desc: t('app.descLogs'), cmd: 'pm2 logs --lines 50' },
   ];
 
   // Finestra a parte del Browser: solo lo schermo, senza menu
@@ -697,7 +697,7 @@ export function App() {
                 <ul className="starter-grid">
                   {terminalStarters.map((s) => (
                     <li key={s.title}>
-                      <button type="button" className="starter-card" onClick={() => openTerminalPreset(s.claude)}>
+                      <button type="button" className="starter-card" onClick={() => openTerminalPreset(s.cmd)}>
                         <h3>{s.title}</h3>
                         <p className="starter-badge">{s.badge}</p>
                         <p className="starter-desc">{s.desc}</p>
@@ -789,7 +789,7 @@ export function App() {
       <NewTerminalDialog
         open={dialog === 'terminal'}
         initialCwd={terminalCwd}
-        initialClaude={terminalPreset}
+        command={terminalCommand}
         error={dialogError}
         busy={creating}
         onClose={closeDialog}

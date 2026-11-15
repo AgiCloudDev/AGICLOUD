@@ -2,7 +2,7 @@
 // senza intestazione (agenti, script) restano i testi italiani originali.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ERRORS, NOTICES, PLUGIN_TEXTS } from './locales.js';
+import { ERRORS, NOTICES, PLUGIN_TEXTS, TITLES } from './locales.js';
 
 export const LANGS = ['it', 'en', 'de', 'cs', 'ru'] as const;
 export type Lang = (typeof LANGS)[number];
@@ -77,3 +77,5 @@ export function rememberLang(lang: Lang): void {
   }
 }
 export const currentLang = (): Lang => lastLang;
+/** Titolo predefinito di una conversazione, nell'ultima lingua usata dall'interfaccia */
+export const tTitle = (m: string): string => translate(TITLES, m, lastLang);

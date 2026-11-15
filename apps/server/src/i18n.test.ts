@@ -2,14 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ERRORS, NOTICES, PLUGIN_TEXTS } from './locales.js';
+import { ERRORS, NOTICES, PLUGIN_TEXTS, TITLES } from './locales.js';
 import { LANGS, parseAccept, tError, tNotice, tPlugin, translate } from './i18n.js';
 
 const here = new URL('.', import.meta.url).pathname;
 const ph = (s: string) => [...new Set([...s.matchAll(/\{(\d)\}/g)].map((m) => m[1]))].sort();
 
 test('tabelle: tutte le lingue compilate, segnaposto uguali all\'italiano', () => {
-  for (const table of [ERRORS, PLUGIN_TEXTS, NOTICES]) {
+  for (const table of [ERRORS, PLUGIN_TEXTS, NOTICES, TITLES]) {
     for (const row of table) {
       assert.equal(row.length, LANGS.length);
       for (let i = 1; i < row.length; i++) {

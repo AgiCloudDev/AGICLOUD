@@ -658,7 +658,7 @@ export const api = {
     request<{ devices: { endpoint: string; device: string }[] }>('POST', '/push/unsubscribe', { endpoint }),
   pushTest: () => request<{ sent: number }>('POST', '/push/test', {}),
   terminals: () => request<TerminalSummary[]>('GET', '/terminals'),
-  createTerminal: (cwd: string, command?: 'claude') => request<TerminalSummary>('POST', '/terminals', { cwd, command }),
+  createTerminal: (cwd: string, command?: string) => request<TerminalSummary>('POST', '/terminals', { cwd, command }),
   threadTerminal: (threadId: string) => request<TerminalSummary>('POST', `/threads/${encodeURIComponent(threadId)}/terminal`),
   deleteTerminal: (id: string) => request<void>('DELETE', `/terminals/${id}`),
   setConfig: (id: string, configId: string, value: string | boolean) =>

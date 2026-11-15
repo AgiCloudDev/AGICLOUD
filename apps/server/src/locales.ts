@@ -161,6 +161,13 @@ export const PLUGIN_TEXTS: ReadonlyArray<readonly [string, string, string, strin
   ["agy (Antigravity) collegato con il tuo account Google, Python 3 con edge-tts e ffmpeg per audio/video", "agy (Antigravity) connected with your Google account, Python 3 with edge-tts and ffmpeg for audio/video", "agy (Antigravity) verbunden mit deinem Google-Konto, Python 3 mit edge-tts und ffmpeg für Audio/Video", "agy (Antigravity) připojený ke tvému účtu Google, Python 3 s edge-tts a ffmpeg pro audio/video", "agy (Antigravity), подключённый к вашей учётной записи Google, Python 3 с edge-tts и ffmpeg для аудио/видео"],
 ];
 
+// Titoli che il server da' alle conversazioni nuove (restano finche' l'utente non scrive o non rinomina)
+export const TITLES: ReadonlyArray<readonly [string, string, string, string, string]> = [
+  ["Nuova conversazione", "New conversation", "Neue Unterhaltung", "Nová konverzace", "Новый диалог"],
+  ["Capo · {1}", "Lead · {1}", "Leitagent · {1}", "Vedoucí · {1}", "Главный агент · {1}"],
+  ["Continua · {1}", "Continued · {1}", "Fortsetzung · {1}", "Pokračování · {1}", "Продолжение · {1}"],
+];
+
 export const NOTICES: ReadonlyArray<readonly [string, string, string, string, string]> = [
   ["Le notifiche funzionano.", "Notifications are working.", "Benachrichtigungen funktionieren.", "Oznámení fungují.", "Уведомления работают."],
   ["Claude: limite quasi finito{1}", "Claude: limit almost reached{1}", "Claude: Limit fast erreicht{1}", "Claude: limit je téměř vyčerpán{1}", "Claude: лимит почти исчерпан{1}"],

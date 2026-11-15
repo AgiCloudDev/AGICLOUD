@@ -6,27 +6,25 @@ interface Props {
   open: boolean;
   /** Cartella proposta (es. quella della conversazione aperta) */
   initialCwd?: string;
-  /** Comando rapido scelto dalla dashboard: preimposta "avvia con Claude" */
-  initialClaude?: boolean;
+  /** Comando rapido scelto dalla dashboard */
+  command?: string;
   error?: string;
   busy: boolean;
   onClose: () => void;
-  onCreate: (cwd: string, command?: 'claude') => void;
+  onCreate: (cwd: string, command?: string) => void;
 }
 
-export function NewTerminalDialog({ open, initialCwd, initialClaude, error, busy, onClose, onCreate }: Props) {
+export function NewTerminalDialog({ open, initialCwd, command, error, busy, onClose, onCreate }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const t = useT();
   const id = useId();
   const [cwd, setCwd] = useState('');
-  const [claude, setClaude] = useState(false);
 
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
     if (open && !d.open) {
       if (initialCwd) setCwd(initialCwd);
-      setClaude(Boolean(initialClaude));
       d.showModal();
     }
     if (!open && d.open) d.close();
@@ -34,7 +32,7 @@ export function NewTerminalDialog({ open, initialCwd, initialClaude, error, busy
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (cwd.trim()) onCreate(cwd.trim(), claude ? 'claude' : undefined);
+    if (cwd.trim()) onCreate(cwd.trim(), command || undefined);
   };
 
   return (
@@ -43,11 +41,6 @@ export function NewTerminalDialog({ open, initialCwd, initialClaude, error, busy
         <h2 id={`${id}-title`}>{t('nuovoterminale.titolo')}</h2>
 
         <ProjectPicker active={open} cwd={cwd} onChange={setCwd} />
-
-        <label className="check-row">
-          <input type="checkbox" checked={claude} onChange={(e) => setClaude(e.target.checked)} />
-          <span>{t('nuovoterminale.avviaClaude')}</span>
-        </label>
 
         {error && (
           <p className="form-error" role="alert">

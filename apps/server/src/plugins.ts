@@ -58,7 +58,7 @@ export interface PluginSpec {
   /** Pulizia alla disinstallazione */
   uninstall?: () => Promise<void>;
   /** Stato del servizio che serve al plugin (es. motore acceso) */
-  health?: () => Promise<{ ok: boolean; detail: string }>;
+  health?: () => Promise<{ ok: boolean; detail: string } | null>;
 }
 
 interface PluginState {
@@ -151,6 +151,8 @@ export function specFromManifest(rawDir: string, origin: ExternalInfo['origin'],
   }
   const web = inside(dir, raw.web);
   const server = inside(dir, raw.server);
+  const validServer = server && existsSync(server) ? server : undefined;
+  const loadServer = () => import(`${pathToFileURL(validServer!).href}?v=${statSync(validServer!).mtimeMs}`);
   return {
     id,
     name: pick(texts.name, 'it'),
@@ -164,6 +166,18 @@ export function specFromManifest(rawDir: string, origin: ExternalInfo['origin'],
     requires: texts.requires ? pick(texts.requires, 'it') : undefined,
     routes: [`/api/x/${id}`, `/plugin-ui/${id}`],
     source: 'external',
+    health: validServer
+      ? async () => {
+          const mod = await loadServer();
+          return typeof mod.health === 'function' ? await mod.health() : null;
+        }
+      : undefined,
+    install: validServer
+      ? async () => {
+          const mod = await loadServer();
+          if (typeof mod.install === 'function') await mod.install();
+        }
+      : undefined,
     external: {
       dir,
       origin,
@@ -171,7 +185,7 @@ export function specFromManifest(rawDir: string, origin: ExternalInfo['origin'],
       texts,
       icon: typeof raw.section?.icon === 'string' ? raw.section.icon : undefined,
       mcp,
-      server: server && existsSync(server) ? server : undefined,
+      server: validServer,
       web: web && existsSync(web) ? web : undefined,
       secrets: Array.isArray(raw.secrets) ? raw.secrets.filter((k: unknown): k is string => typeof k === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/.test(k)) : [],
     },
@@ -337,6 +351,11 @@ export class Plugins {
     const spec = specFromManifest(dir, 'link', url);
     if (this.builtinIds.has(spec.id)) throw new HttpError(409, `Plugin sconosciuto: ${spec.id}`);
     this.requirePlan(spec.id);
+    try {
+      await spec.install?.();
+    } catch (err) {
+      throw new HttpError(409, `Installazione di ${spec.name} non riuscita: ${err instanceof Error ? err.message : err}`);
+    }
     this.specs.set(spec.id, spec);
     this.servers.delete(spec.id);
     this.links[spec.id] = { id: spec.id, dir, url };

@@ -64,3 +64,25 @@ test('segreti: solo nomi di chiave validi dichiarati nel manifest', () => {
   assert.deepEqual(s.external?.secrets, ['HETZNER_API_TOKEN']);
   assert.deepEqual(specFromManifest(plugin({ id: 'senza', name: 'Senza' }), 'link').external?.secrets, []);
 });
+
+test('health e install del modulo server esterno vengono collegati a specFromManifest', async () => {
+  const dir = plugin({ id: 'con-health', name: 'ConHealth', server: 'server.mjs' }, ['server.mjs']);
+  writeFileSync(
+    join(dir, 'server.mjs'),
+    `let ready = false;
+export async function health() { return { ok: ready, detail: ready ? 'attivo' : 'spento' }; }
+export async function install() { ready = true; }
+export async function register() {}
+`,
+  );
+  const s = specFromManifest(dir, 'link', dir);
+  assert.deepEqual(await s.health?.(), { ok: false, detail: 'spento' });
+  await s.install?.();
+  assert.deepEqual(await s.health?.(), { ok: true, detail: 'attivo' });
+
+  const plainDir = plugin({ id: 'senza-health', name: 'SenzaHealth', server: 'server.mjs' }, ['server.mjs']);
+  writeFileSync(join(plainDir, 'server.mjs'), 'export async function register() {}\n');
+  const plain = specFromManifest(plainDir, 'link', plainDir);
+  assert.equal(await plain.health?.(), null);
+  await plain.install?.();
+});

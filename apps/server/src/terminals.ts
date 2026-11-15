@@ -91,7 +91,7 @@ export class Terminal {
     const argv = this.command
       ? WIN
         ? [shell, '/d', '/c', win32Command!.command]
-        : [shell, '-l', '-c', `unset CLAUDE_CODE_OAUTH_TOKEN; ${this.command}`]
+        : [shell, '-l', '-c', `export PATH="$HOME/.local/bin:$PATH"; unset CLAUDE_CODE_OAUTH_TOKEN; ${this.command}`]
       : basename(shell) === 'bash'
         ? [shell, '--rcfile', TERMINAL_RC, '-i']
         : WIN

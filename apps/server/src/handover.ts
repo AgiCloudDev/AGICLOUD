@@ -13,6 +13,7 @@ import type { Hono } from 'hono';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from './config.js';
+import { tTitle } from './i18n.js';
 import { HttpError } from './errors.js';
 import type { Thread, ThreadStore } from './threads.js';
 import { worktreeChanges } from './worktrees.js';
@@ -186,10 +187,10 @@ export async function handover(store: ThreadStore, from: Thread, agentId: string
     return origin;
   }
 
-  const project = from.meta.cwd.split('/').filter(Boolean).pop() ?? 'progetto';
+  const project = from.meta.cwd.split('/').filter(Boolean).pop() ?? 'project';
   const to = store.create(agentId, from.meta.cwd, {
     lead: from.meta.lead,
-    title: `${from.meta.lead ? 'Capo' : 'Continua'} · ${project} (${getAgent(agentId).label})`,
+    title: tTitle(`${from.meta.lead ? 'Capo' : 'Continua'} · ${project} (${getAgent(agentId).label})`),
     handoverFrom: from.id,
   });
   if (from.meta.lead && agentId === 'agy') await to.setConfig('permissions', 'all').catch(() => {});

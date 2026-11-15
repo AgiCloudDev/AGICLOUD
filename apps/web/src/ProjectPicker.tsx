@@ -39,7 +39,7 @@ export function ProjectPicker({ active, cwd, onChange }: { active: boolean; cwd:
         id={`${id}-cwd`}
         value={cwd}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="/opt/progetto"
+        placeholder="/opt/project"
         autoComplete="off"
         spellCheck={false}
         className="mono-input"

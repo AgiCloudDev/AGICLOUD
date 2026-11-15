@@ -74,7 +74,7 @@ systemctl daemon-reload
 
 log "Utente e cartelle"
 id agicloud >/dev/null 2>&1 || useradd --create-home --shell /bin/bash agicloud
-install -d -o agicloud -g agicloud -m 750 /var/lib/agicloud /home/agicloud/progetti
+install -d -o agicloud -g agicloud -m 750 /var/lib/agicloud /home/agicloud/projects
 install -d -o root -g root -m 755 /opt/agicloud /etc/agicloud
 tar -xzf /root/agicloud.tar.gz -C /opt/agicloud
 chown -R agicloud:agicloud /opt/agicloud

@@ -19,6 +19,7 @@ import { EventType, type BaseEvent } from '@ag-ui/core';
 import type * as acp from '@agentclientprotocol/sdk';
 import { AgentSession, AuthRequiredError, custom, ev, getAgent } from '@agicloud/bridge';
 import { config } from './config.js';
+import { tTitle } from './i18n.js';
 import { HttpError } from './errors.js';
 import { resolveProject } from './projects.js';
 import { excludeFromGit, readAttachment, resolveAttachment } from './uploads.js';
@@ -746,7 +747,7 @@ export class ThreadStore {
         agentId,
         cwd: resolveProject(cwd),
         // Il capo tiene il suo titolo (non quello del primo messaggio): si riconosce nella lista
-        title: extra.title ?? (extra.lead ? `Capo · ${basename(resolveProject(cwd))}` : 'Nuova conversazione'),
+        title: extra.title ?? tTitle(extra.lead ? `Capo · ${basename(resolveProject(cwd))}` : 'Nuova conversazione'),
         customTitle: extra.title || extra.lead ? true : undefined,
         lead: extra.lead || undefined,
         parentId: extra.parentId,

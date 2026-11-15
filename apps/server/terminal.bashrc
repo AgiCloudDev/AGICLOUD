@@ -4,3 +4,4 @@
 # ...ma senza il token Claude di ~/.bashrc (serve al webhook-server): qui `claude`
 # deve usare il login dell'account (~/.claude/.credentials.json), come la chat.
 unset CLAUDE_CODE_OAUTH_TOKEN
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
