@@ -5,4 +5,13 @@ export default {
   radici: "Разрешённые корневые папки",
   superiore: "Родительская папка",
   nessunaSotto: "Нет вложенных папок",
+  clonaGit: "+ Клонировать из Git",
+  nuovaCartella: "+ Новая папка",
+  urlGit: "Репозиторий GitHub / Git",
+  urlGitPh: "https://github.com/user/repo  или  user/repo",
+  clona: "Клонировать",
+  clonazione: "Клонирование…",
+  nomeCartella: "Имя новой папки",
+  nomeCartellaPh: "my-project",
+  crea: "Создать",
 } satisfies Record<string, string | Record<string, string>>;

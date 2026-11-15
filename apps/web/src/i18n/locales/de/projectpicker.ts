@@ -5,4 +5,13 @@ export default {
   radici: "Erlaubte Wurzelordner",
   superiore: "Übergeordneter Ordner",
   nessunaSotto: "Keine Unterordner",
+  clonaGit: "+ Aus Git klonen",
+  nuovaCartella: "+ Neuer Ordner",
+  urlGit: "GitHub- / Git-Repository",
+  urlGitPh: "https://github.com/nutzer/repo  oder  nutzer/repo",
+  clona: "Klonen",
+  clonazione: "Klone…",
+  nomeCartella: "Name des neuen Ordners",
+  nomeCartellaPh: "mein-projekt",
+  crea: "Erstellen",
 } satisfies Record<string, string | Record<string, string>>;

@@ -9,6 +9,10 @@ export function ProjectPicker({ active, cwd, onChange }: { active: boolean; cwd:
   const [recent, setRecent] = useState<string[]>([]);
   const [listing, setListing] = useState<DirListing | null>(null);
   const [browseError, setBrowseError] = useState('');
+  const [mode, setMode] = useState<'clone' | 'mkdir' | null>(null);
+  const [gitUrl, setGitUrl] = useState('');
+  const [dirName, setDirName] = useState('');
+  const [actionBusy, setActionBusy] = useState(false);
 
   const browse = async (path: string | undefined) => {
     setBrowseError('');
@@ -22,6 +26,8 @@ export function ProjectPicker({ active, cwd, onChange }: { active: boolean; cwd:
 
   useEffect(() => {
     if (!active) return;
+    setMode(null);
+    setBrowseError('');
     api
       .projects()
       .then((p) => {
@@ -31,6 +37,42 @@ export function ProjectPicker({ active, cwd, onChange }: { active: boolean; cwd:
       .catch(() => {});
     void browse(undefined);
   }, [active]);
+
+  const runClone = async () => {
+    const url = gitUrl.trim();
+    if (!url || actionBusy) return;
+    setActionBusy(true);
+    setBrowseError('');
+    try {
+      const res = await api.cloneProject(url, listing?.path ?? undefined);
+      setGitUrl('');
+      setMode(null);
+      await browse(res.parent);
+      onChange(res.path);
+    } catch (err) {
+      setBrowseError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const runMkdir = async () => {
+    const name = dirName.trim();
+    if (!name || actionBusy) return;
+    setActionBusy(true);
+    setBrowseError('');
+    try {
+      const res = await api.createProjectDir(name, listing?.path ?? undefined);
+      setDirName('');
+      setMode(null);
+      await browse(res.parent);
+      onChange(res.path);
+    } catch (err) {
+      setBrowseError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setActionBusy(false);
+    }
+  };
 
   return (
     <>
@@ -71,7 +113,83 @@ export function ProjectPicker({ active, cwd, onChange }: { active: boolean; cwd:
           <span className="browser-path" title={listing?.path ?? undefined}>
             {listing?.path ? shortPath(listing.path) : t('projectpicker.radici')}
           </span>
+          <div className="browser-actions">
+            <button
+              type="button"
+              className="btn small-btn"
+              aria-expanded={mode === 'clone'}
+              onClick={() => {
+                setBrowseError('');
+                setMode((m) => (m === 'clone' ? null : 'clone'));
+              }}
+            >
+              {t('projectpicker.clonaGit')}
+            </button>
+            <button
+              type="button"
+              className="btn small-btn"
+              aria-expanded={mode === 'mkdir'}
+              onClick={() => {
+                setBrowseError('');
+                setMode((m) => (m === 'mkdir' ? null : 'mkdir'));
+              }}
+            >
+              {t('projectpicker.nuovaCartella')}
+            </button>
+          </div>
         </div>
+        {mode === 'clone' && (
+          <div className="browser-action-bar">
+            <label htmlFor={`${id}-git`} className="visually-hidden">
+              {t('projectpicker.urlGit')}
+            </label>
+            <input
+              id={`${id}-git`}
+              value={gitUrl}
+              onChange={(e) => setGitUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void runClone();
+                }
+              }}
+              placeholder={t('projectpicker.urlGitPh')}
+              autoComplete="off"
+              spellCheck={false}
+              className="mono-input"
+              disabled={actionBusy}
+            />
+            <button type="button" className="btn primary small-btn" disabled={actionBusy || !gitUrl.trim()} onClick={() => void runClone()}>
+              {actionBusy ? t('projectpicker.clonazione') : t('projectpicker.clona')}
+            </button>
+          </div>
+        )}
+        {mode === 'mkdir' && (
+          <div className="browser-action-bar">
+            <label htmlFor={`${id}-mkdir`} className="visually-hidden">
+              {t('projectpicker.nomeCartella')}
+            </label>
+            <input
+              id={`${id}-mkdir`}
+              value={dirName}
+              onChange={(e) => setDirName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void runMkdir();
+                }
+              }}
+              placeholder={t('projectpicker.nomeCartellaPh')}
+              autoComplete="off"
+              spellCheck={false}
+              className="mono-input"
+              disabled={actionBusy}
+            />
+            <button type="button" className="btn primary small-btn" disabled={actionBusy || !dirName.trim()} onClick={() => void runMkdir()}>
+              {t('projectpicker.crea')}
+            </button>
+          </div>
+        )}
         <ul className="dir-list" aria-labelledby={`${id}-browse`}>
           {listing?.path && (
             <li>

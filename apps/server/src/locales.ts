@@ -143,6 +143,9 @@ export const ERRORS: ReadonlyArray<readonly [string, string, string, string, str
   ["Link plugin non riconosciuto", "Unrecognized plugin link", "Plugin-Link nicht erkannt", "Nerozpoznaný odkaz na plugin", "Ссылка на плагин не распознана"],
   ["Comando obbligatorio", "Command is required", "Befehl ist erforderlich", "Příkaz je povinný", "Требуется команда"],
   ["URL obbligatorio", "URL is required", "URL ist erforderlich", "URL je povinná", "Требуется URL"],
+  ["Inserisci l'indirizzo del repository Git", "Enter the Git repository address", "Gib die Adresse des Git-Repositorys ein", "Zadej adresu repozitáře Git", "Введите адрес репозитория Git"],
+  ["Indirizzo Git non valido (es. https://github.com/utente/repo)", "Invalid Git address (e.g. https://github.com/owner/repo)", "Ungültige Git-Adresse (z. B. https://github.com/nutzer/repo)", "Neplatná adresa Gitu (např. https://github.com/uzivatel/repo)", "Недопустимый адрес Git (например, https://github.com/user/repo)"],
+  ["Impossibile clonare il repository (controlla l'indirizzo; se e' privato aggiungi GITHUB_TOKEN in Impostazioni → Chiavi)", "Could not clone the repository (check the address; if it is private, add GITHUB_TOKEN in Settings → Keys)", "Repository konnte nicht geklont werden (prüfe die Adresse; falls es privat ist, füge GITHUB_TOKEN unter Einstellungen → Schlüssel hinzu)", "Repozitář se nepodařilo naklonovat (zkontroluj adresu; pokud je soukromý, přidej GITHUB_TOKEN v Nastavení → Klíče)", "Не удалось клонировать репозиторий (проверьте адрес; если он приватный, добавьте GITHUB_TOKEN в Настройки → Ключи)"],
 ];
 
 export const PLUGIN_TEXTS: ReadonlyArray<readonly [string, string, string, string, string]> = [

@@ -5,4 +5,13 @@ export default {
   radici: "Allowed roots",
   superiore: "Parent folder",
   nessunaSotto: "No subfolders",
+  clonaGit: "+ Clone from Git",
+  nuovaCartella: "+ New folder",
+  urlGit: "GitHub / Git repository",
+  urlGitPh: "https://github.com/owner/repo  or  owner/repo",
+  clona: "Clone",
+  clonazione: "Cloning…",
+  nomeCartella: "New folder name",
+  nomeCartellaPh: "my-project",
+  crea: "Create",
 } satisfies Record<string, string | Record<string, string>>;

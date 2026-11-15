@@ -10,7 +10,7 @@ import { AGENTS } from '@agicloud/bridge';
 import { config } from './config.js';
 import { currentLang, initLastLang, parseAccept, rememberLang, tError, tNotice } from './i18n.js';
 import { isAllowed, PLAN_ERROR, sectionOf } from './features.js';
-import { listDirs } from './projects.js';
+import { cloneProject, createProjectDir, isGitSource, listDirs } from './projects.js';
 import { TerminalStore } from './terminals.js';
 import { saveUploads } from './uploads.js';
 import { Push } from './push.js';
@@ -228,9 +228,21 @@ app.get('/api/agents', (c) =>
   c.json(Object.values(AGENTS).map(({ id, label, native, note }) => ({ id, label, native, note }))),
 );
 
+const githubToken = () => settings.vaultValue('GITHUB_TOKEN') || settings.vaultValue('GH_TOKEN');
+
 app.get('/api/projects', (c) => c.json({ roots: config.projectRoots, recent: store.recentProjects() }));
 
 app.get('/api/dirs', (c) => c.json(listDirs(c.req.query('path') || undefined)));
+
+app.post('/api/projects/clone', async (c) => {
+  const body = await jsonBody(c);
+  return c.json(await cloneProject(String(body.url ?? ''), optString(body.parent), githubToken()), 201);
+});
+
+app.post('/api/projects/mkdir', async (c) => {
+  const body = await jsonBody(c);
+  return c.json(createProjectDir(String(body.name ?? ''), optString(body.parent)), 201);
+});
 
 app.get('/api/threads', (c) => c.json(store.list()));
 
@@ -252,7 +264,9 @@ app.post('/api/threads', async (c) => {
   } catch (err) {
     throw new HttpError(400, err instanceof Error ? err.message : String(err));
   }
-  const thread = store.create(String(body.agentId ?? ''), String(body.cwd ?? ''), { lead: body.lead === true, design, browser: body.browser === true || undefined });
+  const rawCwd = String(body.cwd ?? '').trim();
+  const cwd = isGitSource(rawCwd) ? (await cloneProject(rawCwd, undefined, githubToken())).path : rawCwd;
+  const thread = store.create(String(body.agentId ?? ''), cwd, { lead: body.lead === true, design, browser: body.browser === true || undefined });
   // agy senza finestra non puo' chiedere permessi: da capo lavora con "Consenti tutto" (le deleghe le approva l'utente)
   if (body.lead === true && thread.meta.agentId === 'agy') await thread.setConfig('permissions', 'all').catch(() => {});
   return c.json(thread.summary(), 201);
@@ -542,7 +556,9 @@ const TERMINAL_COMMANDS: Record<string, () => string> = {
 app.post('/api/terminals', async (c) => {
   const body = await jsonBody(c);
   const preset = typeof body.command === 'string' ? TERMINAL_COMMANDS[body.command] : undefined;
-  const t = terminals.create(String(body.cwd ?? ''), preset?.());
+  const rawCwd = String(body.cwd ?? '').trim();
+  const cwd = isGitSource(rawCwd) ? (await cloneProject(rawCwd, undefined, githubToken())).path : rawCwd;
+  const t = terminals.create(cwd, preset?.());
   return c.json(t.summary(), 201);
 });
 

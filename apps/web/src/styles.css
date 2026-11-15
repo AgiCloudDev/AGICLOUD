@@ -1012,7 +1012,8 @@ legend {
 }
 .browser-head {
   display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
@@ -1025,6 +1026,24 @@ legend {
   white-space: nowrap;
   font-family: var(--mono);
   font-size: 0.8rem;
+}
+.browser-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.browser-action-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.browser-action-bar input {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
 }
 .dir-list {
   max-height: 220px;

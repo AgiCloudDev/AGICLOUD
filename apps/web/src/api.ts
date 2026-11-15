@@ -446,6 +446,10 @@ export const api = {
   agents: () => request<AgentInfo[]>('GET', '/agents'),
   projects: () => request<{ roots: string[]; recent: string[] }>('GET', '/projects'),
   dirs: (path?: string) => request<DirListing>('GET', `/dirs${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  cloneProject: (url: string, parent?: string) =>
+    request<{ path: string; parent: string; name: string; existed: boolean }>('POST', '/projects/clone', { url, parent }),
+  createProjectDir: (name: string, parent?: string) =>
+    request<{ path: string; parent: string; name: string }>('POST', '/projects/mkdir', { name, parent }),
   threads: () => request<ThreadSummary[]>('GET', '/threads'),
   updateThread: (id: string, patch: { title?: string; pinned?: boolean; archived?: boolean }) =>
     request<ThreadSummary>('PATCH', `/threads/${id}`, patch),

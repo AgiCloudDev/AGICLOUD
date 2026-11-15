@@ -5,4 +5,13 @@ export default {
   radici: "Povolené kořenové složky",
   superiore: "Nadřazená složka",
   nessunaSotto: "Žádné podsložky",
+  clonaGit: "+ Klonovat z Gitu",
+  nuovaCartella: "+ Nová složka",
+  urlGit: "Repozitář GitHub / Git",
+  urlGitPh: "https://github.com/uzivatel/repo  nebo  uzivatel/repo",
+  clona: "Klonovat",
+  clonazione: "Klonování…",
+  nomeCartella: "Název nové složky",
+  nomeCartellaPh: "muj-projekt",
+  crea: "Vytvořit",
 } satisfies Record<string, string | Record<string, string>>;
