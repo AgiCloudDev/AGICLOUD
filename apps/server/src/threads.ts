@@ -319,6 +319,12 @@ export class Thread {
       if (this.meta.browser && !opts.auto && !this.events.some((e) => e.type === EventType.RUN_STARTED)) {
         agentPrompt = `${BROWSER_PROMPT}\n\n${prompt}`;
       }
+      // Primo messaggio: l'agente deve sapere che le chiavi del portachiavi sono gia' nel suo ambiente,
+      // altrimenti dice "in questa sessione non ho la chiave" e l'utente la incolla in chat
+      if (!opts.auto && !this.events.some((e) => e.type === EventType.RUN_STARTED)) {
+        const note = vaultNote(Object.keys(this.store.settings.agentEnv(this.meta.agentId)));
+        if (note) agentPrompt = `${note}\n\n---\n\n${agentPrompt}`;
+      }
       // Capo non Claude: le istruzioni del server MCP potrebbero non essere lette, vanno nel primo messaggio
       if (this.meta.lead && this.meta.agentId !== 'claude' && this.store.lead && !this.events.some((e) => e.type === EventType.RUN_STARTED)) {
         agentPrompt = `[Istruzioni di AgiCloud per il capo]\n${await this.store.lead.instructions(this)}\n\nGli strumenti del capo sono nel server MCP "agicloud" (delega, stato_thread, leggi_thread, scrivi_thread).\n\n---\n\n${agentPrompt}`;
@@ -838,4 +844,16 @@ function buildPrompt(prompt: string, files: { rel: string; abs: string; size: nu
     }
   }
   return blocks;
+}
+
+/** Nota per l'agente con i NOMI (mai i valori) delle chiavi che riceve come variabili d'ambiente */
+export function vaultNote(names: string[]): string {
+  const keys = names.filter((n) => /^[A-Z][A-Z0-9_]*$/.test(n)).sort();
+  if (!keys.length) return '';
+  return [
+    '[Nota di AgiCloud sulle chiavi]',
+    `Le chiavi API dell'utente sono nel portachiavi di AgiCloud (Impostazioni -> Chiavi) e ti arrivano gia' come variabili d'ambiente: ${keys.join(', ')}.`,
+    'Usale da li\' (es. $NOME o process.env.NOME). Non dire che mancano e non chiedere mai all\'utente di scriverle in chat: una chiave incollata in chat e\' compromessa.',
+    'Se ne serve una che non c\'e\', chiedi all\'utente di aggiungerla in Impostazioni -> Chiavi. Non stampare mai i valori.',
+  ].join('\n');
 }
