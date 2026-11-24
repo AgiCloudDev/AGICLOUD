@@ -704,7 +704,7 @@ label {
 /* ── Composer: resta sopra la tastiera virtuale e la barra home ──────────── */
 .composer {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   gap: 4px 8px;
   align-items: end;
   padding: 10px 16px;
@@ -717,10 +717,84 @@ label {
   max-height: 240px;
   line-height: 1.45;
 }
-.send-btn {
+.send-btn,
+.mic-btn {
   width: 48px;
   height: 48px;
   padding: 0;
+}
+.mic-btn.is-recording {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-soft, color-mix(in srgb, var(--danger) 14%, transparent));
+  animation: voice-pulse 1.4s ease-in-out infinite;
+}
+@keyframes voice-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 35%, transparent); }
+  50% { box-shadow: 0 0 0 5px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mic-btn.is-recording {
+    animation: none;
+  }
+}
+.icon-btn.is-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.voice-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 0.9rem;
+}
+.voice-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.voice-dot.is-rec {
+  background: var(--danger);
+}
+.voice-status {
+  font-weight: 500;
+  margin-right: auto;
+}
+.voice-actions {
+  display: flex;
+  gap: 6px;
+}
+.voice-actions .btn {
+  min-height: 44px;
+  padding: 6px 12px;
+}
+.message-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.msg-speak-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.msg-speak-btn .icon {
+  width: 16px;
+  height: 16px;
 }
 .composer-hint,
 .composer .form-error {

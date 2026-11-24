@@ -687,6 +687,25 @@ export const api = {
   cancel: (id: string) => request<void>('POST', `/threads/${id}/cancel`),
   respondPermission: (id: string, requestId: string, optionId: string | null) =>
     request<void>('POST', `/threads/${id}/permissions/${requestId}`, { optionId }),
+  voice: {
+    transcribe: async (audio: Blob, filename: string, lang: string): Promise<{ text: string; model: string; cost?: number }> => {
+      const form = new FormData();
+      form.append('audio', audio, filename);
+      form.append('lang', lang);
+      const res = await apiFetch('/voice/transcribe', { method: 'POST', body: form });
+      return res.json();
+    },
+    speak: async (text: string, opts?: { lang?: string; voice?: string; rate?: string }, signal?: AbortSignal): Promise<Blob | null> => {
+      const res = await apiFetch('/voice/speak', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text, ...opts }),
+        signal,
+      });
+      if (res.status === 204) return null;
+      return res.blob();
+    },
+  },
 };
 
 /**

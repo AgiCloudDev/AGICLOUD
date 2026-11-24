@@ -3,7 +3,8 @@ import { api, apiFetch, followEvents, type FileEntry, type ThreadSummary } from 
 import { emptyTranscript, reduce, type ConfigOption, type Item, type SlashCommand } from './transcript';
 import { Markdown } from './markdown';
 import { Icon } from './icons';
-import { fmtDateTime, fmtNumber, t, useT } from './i18n';
+import { fmtDateTime, fmtNumber, getLang, t, useT } from './i18n';
+import { canRecordAudio, loadVoicePrefs, saveVoicePrefs, SpeechQueue, splitSpeakableSentences, VoiceRecorder } from './voice';
 import { DiffStat, DiffView, diffStats } from './DiffView';
 import { ChildPanel, DelegationView, LeadChildren } from './LeadViews';
 import { SearchSelect } from './SearchSelect';
@@ -46,12 +47,100 @@ export function Chat({ thread, threads, agentLabel, onDelete, onOpenTerminal }: 
   const [handoverOpen, setHandoverOpen] = useState(false);
   /** Lontano dal fondo: compare la freccia per tornarci */
   const [awayFromBottom, setAwayFromBottom] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(() => loadVoicePrefs().enabled);
+  const [voiceRate] = useState(() => loadVoicePrefs().rate);
+  const [voiceState, setVoiceState] = useState<{ speaking: boolean; messageId: string | null; error?: string }>({
+    speaking: false,
+    messageId: null,
+  });
+  const speechRef = useRef<SpeechQueue | null>(null);
+  if (!speechRef.current) {
+    speechRef.current = new SpeechQueue((st) => setVoiceState(st));
+  }
+  const spokenRef = useRef<{ turnActive: boolean; msgId: string | null; offset: number }>({
+    turnActive: false,
+    msgId: null,
+    offset: 0,
+  });
 
   useEffect(() => {
     dispatch({ type: 'reset' });
     stickToBottom.current = true;
+    spokenRef.current = { turnActive: false, msgId: null, offset: 0 };
+    speechRef.current?.stop();
     return followEvents(thread.id, (event) => dispatch({ type: 'event', event }), setConnected);
   }, [thread.id]);
+
+  useEffect(() => {
+    return () => {
+      speechRef.current?.stop();
+    };
+  }, []);
+
+  const toggleVoiceMode = () => {
+    const next = !voiceMode;
+    setVoiceMode(next);
+    saveVoicePrefs({ enabled: next, rate: voiceRate });
+    if (next) speechRef.current?.unlock();
+    else speechRef.current?.stop();
+  };
+
+  const speakMessage = (id: string, text: string) => {
+    if (voiceState.speaking && voiceState.messageId === id) {
+      speechRef.current?.stop();
+      return;
+    }
+    speechRef.current?.unlock();
+    speechRef.current?.stop();
+    const { chunks } = splitSpeakableSentences(text, true);
+    for (const chunk of chunks) {
+      speechRef.current?.enqueue(chunk, { lang: getLang(), rate: voiceRate }, id);
+    }
+  };
+
+  // Lettura automatica delle risposte in streaming quando la modalita' voce e' attiva
+  useEffect(() => {
+    if (!voiceMode) {
+      spokenRef.current = { turnActive: false, msgId: null, offset: 0 };
+      return;
+    }
+    let latestMsg: Extract<Item, { kind: 'message' }> | null = null;
+    for (let i = state.items.length - 1; i >= 0; i--) {
+      const it = state.items[i]!;
+      if (it.kind === 'message' && it.role === 'assistant' && !it.auto) {
+        latestMsg = it;
+        break;
+      }
+    }
+    if (state.running) {
+      if (!spokenRef.current.turnActive) {
+        spokenRef.current = { turnActive: true, msgId: null, offset: 0 };
+      }
+      if (!latestMsg) return;
+      if (spokenRef.current.msgId !== latestMsg.id) {
+        spokenRef.current.msgId = latestMsg.id;
+        spokenRef.current.offset = 0;
+      }
+      const delta = latestMsg.text.slice(spokenRef.current.offset);
+      const { chunks, consumed } = splitSpeakableSentences(delta, false);
+      if (chunks.length > 0) {
+        spokenRef.current.offset += consumed;
+        for (const chunk of chunks) {
+          speechRef.current?.enqueue(chunk, { lang: getLang(), rate: voiceRate }, latestMsg.id);
+        }
+      }
+    } else if (spokenRef.current.turnActive) {
+      spokenRef.current.turnActive = false;
+      if (latestMsg && (!spokenRef.current.msgId || spokenRef.current.msgId === latestMsg.id)) {
+        const delta = latestMsg.text.slice(spokenRef.current.offset);
+        const { chunks, consumed } = splitSpeakableSentences(delta, true);
+        spokenRef.current.offset += consumed;
+        for (const chunk of chunks) {
+          speechRef.current?.enqueue(chunk, { lang: getLang(), rate: voiceRate }, latestMsg.id);
+        }
+      }
+    }
+  }, [state.running, state.items, voiceMode, voiceRate]);
 
   // Annunci per lettori di schermo: niente lettura del testo in streaming, solo i momenti importanti
   const prevRunning = useRef(false);
@@ -138,6 +227,16 @@ export function Chat({ thread, threads, agentLabel, onDelete, onOpenTerminal }: 
           {statusText(state.status)}
           {!connected && <span className="status-offline">{t('chat.riconnessione')}</span>}
         </p>
+        <button
+          type="button"
+          className={`btn icon-btn${voiceMode ? ' is-active' : ''}`}
+          aria-pressed={voiceMode}
+          title={voiceMode ? t('chat.modalitaVoceAttiva') : t('chat.modalitaVoceSpenta')}
+          onClick={toggleVoiceMode}
+        >
+          <Icon name={voiceMode ? 'volume' : 'volumeOff'} />
+          <span className="visually-hidden">{voiceMode ? t('chat.modalitaVoceAttiva') : t('chat.modalitaVoceSpenta')}</span>
+        </button>
         <button type="button" className="btn icon-btn" aria-expanded={handoverOpen} onClick={() => setHandoverOpen((v) => !v)}>
           <Icon name="swap" />
           <span className="visually-hidden">{t('chat.passaLavoro')}</span>
@@ -187,7 +286,14 @@ export function Chat({ thread, threads, agentLabel, onDelete, onOpenTerminal }: 
         <ol className="items">
           {state.items.map((it) => (
             <li key={it.id} className={`item item-${it.kind}${it.kind === 'message' ? ` from-${it.role}` : ''}`}>
-              <ItemView item={it} threadId={thread.id} cwd={thread.cwd} threads={threads} />
+              <ItemView
+                item={it}
+                threadId={thread.id}
+                cwd={thread.cwd}
+                threads={threads}
+                speakingMessageId={voiceState.speaking ? voiceState.messageId : null}
+                onSpeakMessage={speakMessage}
+              />
             </li>
           ))}
         </ol>
@@ -214,8 +320,12 @@ export function Chat({ thread, threads, agentLabel, onDelete, onOpenTerminal }: 
         commands={state.commands}
         disabled={!canSend}
         running={state.running}
-        error={sendError}
+        error={sendError || (voiceState.error ?? '')}
         usage={state.usage}
+        voiceMode={voiceMode}
+        voiceSpeaking={voiceState.speaking}
+        onStopVoice={() => speechRef.current?.stop()}
+        onUnlockVoice={() => speechRef.current?.unlock()}
         onSend={send}
         onStop={() => api.cancel(thread.id).catch(() => {})}
       />
@@ -230,7 +340,21 @@ export function Chat({ thread, threads, agentLabel, onDelete, onOpenTerminal }: 
   );
 }
 
-function ItemView({ item, threadId, cwd, threads }: { item: Item; threadId: string; cwd: string; threads: ThreadSummary[] }) {
+function ItemView({
+  item,
+  threadId,
+  cwd,
+  threads,
+  speakingMessageId,
+  onSpeakMessage,
+}: {
+  item: Item;
+  threadId: string;
+  cwd: string;
+  threads: ThreadSummary[];
+  speakingMessageId: string | null;
+  onSpeakMessage: (id: string, text: string) => void;
+}) {
   const t = useT();
   switch (item.kind) {
     case 'message':
@@ -245,6 +369,19 @@ function ItemView({ item, threadId, cwd, threads }: { item: Item; threadId: stri
       return (
         <article className="message" aria-label={item.role === 'user' ? t('chat.ruoloTu') : t('chat.ruoloAgente')}>
           {item.role === 'user' ? <p className="user-text">{item.text}</p> : <Markdown text={item.text} chat />}
+          {item.role === 'assistant' && item.text.trim().length > 0 && (
+            <div className="message-actions">
+              <button
+                type="button"
+                className="btn msg-speak-btn"
+                aria-pressed={speakingMessageId === item.id}
+                onClick={() => onSpeakMessage(item.id, item.text)}
+              >
+                <Icon name={speakingMessageId === item.id ? 'stop' : 'volume'} />
+                <span>{speakingMessageId === item.id ? t('chat.fermaVoce') : t('chat.ascoltaMessaggio')}</span>
+              </button>
+            </div>
+          )}
         </article>
       );
     case 'delegation':
@@ -475,6 +612,10 @@ function Composer({
   running,
   error,
   usage,
+  voiceMode,
+  voiceSpeaking,
+  onStopVoice,
+  onUnlockVoice,
   onSend,
   onStop,
 }: {
@@ -486,6 +627,10 @@ function Composer({
   running: boolean;
   error: string;
   usage?: { used: number; size: number };
+  voiceMode: boolean;
+  voiceSpeaking: boolean;
+  onStopVoice: () => void;
+  onUnlockVoice: () => void;
   onSend: (text: string, attachments: string[]) => Promise<boolean>;
   onStop: () => void;
 }) {
@@ -494,6 +639,94 @@ function Composer({
   const [files, setFiles] = useState<PendingFile[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const [fileMsg, setFileMsg] = useState('');
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const [voiceErr, setVoiceErr] = useState('');
+  const recorderRef = useRef<VoiceRecorder | null>(null);
+  const finishingRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      recorderRef.current?.cancel();
+      recorderRef.current = null;
+    };
+  }, []);
+
+  const fmtRecTime = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+
+  const finishRecording = async () => {
+    if (finishingRef.current || !recorderRef.current) return;
+    finishingRef.current = true;
+    const rec = recorderRef.current;
+    recorderRef.current = null;
+    setRecording(false);
+    try {
+      const res = await rec.stop();
+      if (!res) {
+        setVoiceErr(t('chat.nessunParlato'));
+        return;
+      }
+      setTranscribing(true);
+      const tr = await api.voice.transcribe(res.blob, res.filename, getLang());
+      const spoken = tr.text.trim();
+      if (!spoken) {
+        setVoiceErr(t('chat.nessunParlato'));
+        return;
+      }
+      if (voiceMode && !disabled && !uploading && !text.trim()) {
+        if (await onSend(spoken, ready)) {
+          for (const f of files) if (f.preview) URL.revokeObjectURL(f.preview);
+          setFiles([]);
+          setFileMsg('');
+        }
+      } else {
+        setText((cur) => (cur.trim() ? `${cur.trimEnd()} ${spoken}` : spoken));
+        area.current?.focus();
+      }
+    } catch (err) {
+      setVoiceErr(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTranscribing(false);
+      finishingRef.current = false;
+    }
+  };
+
+  const startRecording = async () => {
+    setVoiceErr('');
+    onStopVoice();
+    onUnlockVoice();
+    if (!canRecordAudio()) {
+      setVoiceErr(t('chat.microfonoNonDisponibile'));
+      return;
+    }
+    const rec = new VoiceRecorder();
+    recorderRef.current = rec;
+    try {
+      setRecSeconds(0);
+      setRecording(true);
+      await rec.start({
+        autoStopOnSilence: voiceMode,
+        onTick: setRecSeconds,
+        onAutoStop: () => void finishRecording(),
+      });
+    } catch (err) {
+      recorderRef.current = null;
+      setRecording(false);
+      if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+        setVoiceErr(t('chat.microfonoNegato'));
+      } else {
+        setVoiceErr(err instanceof Error ? err.message : String(err));
+      }
+    }
+  };
+
+  const cancelRecording = () => {
+    recorderRef.current?.cancel();
+    recorderRef.current = null;
+    setRecording(false);
+    setVoiceErr('');
+  };
 
   const addFiles = async (list: FileList | File[]) => {
     const picked = [...list];
@@ -687,6 +920,35 @@ function Composer({
         if (e.dataTransfer.files.length) void addFiles(e.dataTransfer.files);
       }}
     >
+      {(recording || transcribing || voiceSpeaking) && (
+        <div className="voice-bar" role="status" aria-live="polite">
+          <span className={`voice-dot${recording ? ' is-rec' : ''}`} aria-hidden="true" />
+          <span className="voice-status">
+            {recording
+              ? t('chat.registrazioneInCorso', { tempo: fmtRecTime(recSeconds) })
+              : transcribing
+                ? t('chat.trascrizioneInCorso')
+                : t('chat.staParlando')}
+          </span>
+          <div className="voice-actions">
+            {recording && (
+              <>
+                <button type="button" className="btn" onClick={cancelRecording}>
+                  {t('chat.annullaRegistrazione')}
+                </button>
+                <button type="button" className="btn primary" onClick={() => void finishRecording()}>
+                  {t('chat.fermaRegistrazione')}
+                </button>
+              </>
+            )}
+            {voiceSpeaking && !recording && (
+              <button type="button" className="btn" onClick={onStopVoice}>
+                {t('chat.fermaVoce')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {files.length > 0 && (
         <ul className="attach-list pending" aria-label={t('chat.fileDaInviare')}>
           {files.map((f) => (
@@ -816,8 +1078,19 @@ function Composer({
         aria-controls={open ? listId : undefined}
         aria-activedescendant={open ? `${listId}-${activeIndex}` : undefined}
         aria-autocomplete="list"
-        aria-describedby={`${id}-hint${error ? ` ${id}-err` : ''}`}
+        aria-describedby={`${id}-hint${error || voiceErr ? ` ${id}-err` : ''}`}
       />
+      <button
+        type="button"
+        className={`btn icon-btn mic-btn${recording ? ' is-recording' : ''}`}
+        aria-pressed={recording}
+        disabled={transcribing}
+        title={recording ? t('chat.fermaRegistrazione') : t('chat.registraVoce')}
+        onClick={() => (recording ? void finishRecording() : void startRecording())}
+      >
+        <Icon name={recording ? 'stop' : 'mic'} />
+        <span className="visually-hidden">{recording ? t('chat.fermaRegistrazione') : t('chat.registraVoce')}</span>
+      </button>
       {running ? (
         <button type="button" className="btn send-btn danger" onClick={onStop}>
           <Icon name="stop" />
@@ -842,9 +1115,9 @@ function Composer({
       <div className="visually-hidden" aria-live="polite">
         {open ? t('chat.comandiDisponibili', { n: suggestions.length }) : fileMsg}
       </div>
-      {error && (
+      {(error || voiceErr) && (
         <p id={`${id}-err`} className="form-error" role="alert">
-          {error}
+          {voiceErr || error}
         </p>
       )}
     </form>

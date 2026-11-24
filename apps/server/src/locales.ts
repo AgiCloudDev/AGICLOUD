@@ -146,6 +146,10 @@ export const ERRORS: ReadonlyArray<readonly [string, string, string, string, str
   ["Inserisci l'indirizzo del repository Git", "Enter the Git repository address", "Gib die Adresse des Git-Repositorys ein", "Zadej adresu repozitáře Git", "Введите адрес репозитория Git"],
   ["Indirizzo Git non valido (es. https://github.com/utente/repo)", "Invalid Git address (e.g. https://github.com/owner/repo)", "Ungültige Git-Adresse (z. B. https://github.com/nutzer/repo)", "Neplatná adresa Gitu (např. https://github.com/uzivatel/repo)", "Недопустимый адрес Git (например, https://github.com/user/repo)"],
   ["Impossibile clonare il repository (controlla l'indirizzo; se e' privato aggiungi GITHUB_TOKEN in Impostazioni → Chiavi)", "Could not clone the repository (check the address; if it is private, add GITHUB_TOKEN in Settings → Keys)", "Repository konnte nicht geklont werden (prüfe die Adresse; falls es privat ist, füge GITHUB_TOKEN unter Einstellungen → Schlüssel hinzu)", "Repozitář se nepodařilo naklonovat (zkontroluj adresu; pokud je soukromý, přidej GITHUB_TOKEN v Nastavení → Klíče)", "Не удалось клонировать репозиторий (проверьте адрес; если он приватный, добавьте GITHUB_TOKEN в Настройки → Ключи)"],
+  ["Audio mancante o vuoto", "Audio missing or empty", "Audio fehlt oder ist leer", "Zvuk chybí nebo je prázdný", "Аудио отсутствует или пусто"],
+  ["Audio troppo grande (max 15 MB)", "Audio too large (max 15 MB)", "Audio zu groß (max. 15 MB)", "Zvuk je příliš velký (max. 15 MB)", "Аудио слишком велико (максимум 15 МБ)"],
+  ["Trascrizione non riuscita: {1}", "Transcription failed: {1}", "Transkription fehlgeschlagen: {1}", "Přepis se nezdařil: {1}", "Не удалось расшифровать: {1}"],
+  ["Sintesi vocale non riuscita: {1}", "Speech synthesis failed: {1}", "Sprachausgabe fehlgeschlagen: {1}", "Syntéza řeči se nezdařila: {1}", "Не удалось синтезировать речь: {1}"],
 ];
 
 export const PLUGIN_TEXTS: ReadonlyArray<readonly [string, string, string, string, string]> = [

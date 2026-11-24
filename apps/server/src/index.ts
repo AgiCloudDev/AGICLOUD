@@ -8,7 +8,7 @@ import { Hono, type Context } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { AGENTS } from '@agicloud/bridge';
 import { config } from './config.js';
-import { currentLang, initLastLang, parseAccept, rememberLang, tError, tNotice } from './i18n.js';
+import { currentLang, initLastLang, isLang, parseAccept, rememberLang, tError, tNotice } from './i18n.js';
 import { isAllowed, PLAN_ERROR, sectionOf } from './features.js';
 import { cloneProject, createProjectDir, isGitSource, listDirs } from './projects.js';
 import { TerminalStore } from './terminals.js';
@@ -34,6 +34,7 @@ import { browserMcpServer, browserPlugin, browserUpgrade, ensureBrowser, registe
 import { registerVideo, videoMcpServer, videoPlugin } from './video.js';
 import { notebookPlugin, registerNotebook } from './notebook.js';
 import { McpStore, registerMcp } from './mcp.js';
+import { registerVoice } from './voice.js';
 
 const settings = new Settings();
 const store = new ThreadStore(settings);
@@ -50,8 +51,9 @@ const app = new Hono<{ Bindings: HttpBindings }>();
 // Lingua dell'interfaccia: i messaggi d'errore (anche quelli scritti direttamente con c.json({ error })) escono nella lingua scelta
 initLastLang(join(config.threadsDir, '..'));
 app.use('*', async (c, next) => {
-  const lang = parseAccept(c.req.header('accept-language'));
-  if (lang) rememberLang(lang);
+  const rawAccept = c.req.header('accept-language');
+  const lang = parseAccept(rawAccept);
+  if (lang && isLang(rawAccept?.trim())) rememberLang(lang);
   await next();
   if (!lang || lang === 'it' || c.res.status < 400 || !(c.res.headers.get('content-type') ?? '').includes('application/json')) return;
   const body = (await c.res.clone().json().catch(() => null)) as { error?: unknown } | null;
@@ -220,6 +222,7 @@ registerHandover(app, store, limits);
 registerVideo(app);
 registerNotebook(app, settings);
 registerMcp(app, mcpStore, plugins);
+registerVoice(app, settings);
 
 // ── API ──────────────────────────────────────────────────────────────────────
 app.get('/api/session', (c) => c.json({ ok: true, authRequired: Boolean(config.authToken), setupPending: !config.authToken && Boolean(config.setupToken), features: config.featuresList }));

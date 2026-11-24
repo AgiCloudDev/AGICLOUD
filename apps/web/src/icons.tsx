@@ -25,6 +25,9 @@ const paths = {
   video: 'M4 6h16v12H4zM4 10l6 3-6 3zM16 10l4-2v8l-4-2',
   notebook: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5V4.5A2.5 2.5 0 0 1 6.5 2M9 7h7M9 11h5',
   accessibility: 'M12 4a2 2 0 1 0 0 4 2 2 0 1 0 0-4M5 9l7 1 7-1M12 10v5M12 15l-3 6M12 15l3 6',
+  mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8',
+  volume: 'M11 5L6 9H3v6h3l5 4V5M15.5 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12',
+  volumeOff: 'M11 5L6 9H3v6h3l5 4V5M21 9l-6 6M15 9l6 6',
 } as const;
 
 export type IconName = keyof typeof paths;
