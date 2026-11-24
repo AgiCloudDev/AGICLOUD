@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ERRORS, NOTICES, PLUGIN_TEXTS, TITLES } from './locales.js';
 import { LANGS, parseAccept, tError, tNotice, tPlugin, translate } from './i18n.js';
+import { startPage } from './browser.js';
 
 const here = new URL('.', import.meta.url).pathname;
 const ph = (s: string) => [...new Set([...s.matchAll(/\{(\d)\}/g)].map((m) => m[1]))].sort();
@@ -51,4 +52,21 @@ test('traduzione: parti variabili, esatti, lingue sconosciute e Accept-Language'
   assert.equal(parseAccept('de-DE,de;q=0.9,en;q=0.8'), 'de');
   assert.equal(parseAccept('fr,ja'), null);
   assert.equal(parseAccept(undefined), null);
+});
+
+test('browser startPage: localizzata per tutte le lingue', () => {
+  const expected: Record<string, { title: string; wiki: string }> = {
+    it: { title: '<title>Nuova scheda</title>', wiki: 'https://it.wikipedia.org' },
+    en: { title: '<title>New tab</title>', wiki: 'https://en.wikipedia.org' },
+    de: { title: '<title>Neuer Tab</title>', wiki: 'https://de.wikipedia.org' },
+    cs: { title: '<title>Nová karta</title>', wiki: 'https://cs.wikipedia.org' },
+    ru: { title: '<title>Новая вкладка</title>', wiki: 'https://ru.wikipedia.org' },
+  };
+  for (const lang of LANGS) {
+    const html = startPage(lang);
+    assert.ok(html.includes(`<html lang="${lang}">`), `${lang}: missing html lang`);
+    assert.ok(html.includes(expected[lang]!.title), `${lang}: missing title`);
+    assert.ok(html.includes(expected[lang]!.wiki), `${lang}: missing wiki link`);
+    assert.ok(!html.includes('Browser condiviso') || lang === 'it', `${lang}: untranslated heading`);
+  }
 });

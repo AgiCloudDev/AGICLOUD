@@ -183,14 +183,27 @@ export function App() {
     void refresh();
   }, [refresh]);
 
-  // Titoli e stati cambiano lato server: aggiornamento leggero
+  // Titoli e stati cambiano lato server: aggiornamento leggero.
+  // Una richiesta alla volta (con la rete lenta non si accumulano) e niente polling a scheda nascosta.
   useEffect(() => {
     if (auth !== 'ok') return;
-    const t = setInterval(() => {
-      api.threads().then(setThreads).catch(() => {});
-      api.terminals().then(setTerminals).catch(() => {});
-    }, 5000);
-    return () => clearInterval(t);
+    let busy = false;
+    const poll = () => {
+      if (busy || document.hidden) return;
+      busy = true;
+      Promise.all([
+        api.threads().then(setThreads).catch(() => {}),
+        api.terminals().then(setTerminals).catch(() => {}),
+      ]).finally(() => {
+        busy = false;
+      });
+    };
+    const t = setInterval(poll, 5000);
+    document.addEventListener('visibilitychange', poll);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', poll);
+    };
   }, [auth]);
 
   // Link vecchi o notifiche (#/t/<id>) di una sessione di design: si apre nella sezione Design

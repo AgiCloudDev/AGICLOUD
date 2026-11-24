@@ -16,6 +16,7 @@ import type * as acp from '@agentclientprotocol/sdk';
 import type { Hono } from 'hono';
 import { WebSocket, WebSocketServer } from 'ws';
 import { config } from './config.js';
+import { currentLang, isLang, rememberLang, type Lang } from './i18n.js';
 import type { PluginSpec } from './plugins.js';
 
 const PORT = Number(process.env.BROWSER_CDP_PORT || 9333);
@@ -36,6 +37,14 @@ const USER_AGENT =
 /** Con la vista dal telefono il browser si presenta come Chrome per Android: i siti mandano la versione mobile */
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36';
+
+const ACCEPT_LANG: Record<Lang, string> = {
+  it: 'it-IT,it',
+  en: 'en-US,en',
+  de: 'de-DE,de',
+  cs: 'cs-CZ,cs',
+  ru: 'ru-RU,ru',
+};
 
 interface Target {
   id: string;
@@ -85,7 +94,7 @@ export function ensureBrowser(): Promise<void> {
         // Nel container dell'ambiente (sola lettura, senza permessi) il sandbox di Chromium non parte:
         // l'isolamento lo da' il container; /dev/shm e' piccola, la memoria condivisa va su file
         ...(process.env.BROWSER_IN_CONTAINER ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
-        '--lang=it-IT',
+        `--lang=${ACCEPT_LANG[currentLang()].split(',')[0]}`,
         START_URL,
       ],
       { stdio: 'ignore' },
@@ -267,6 +276,7 @@ class Viewer {
     if (!t?.webSocketDebuggerUrl || this.closed) return;
     this.link?.close();
     this.mobileUa = false;
+    this.uaLang = null;
     this.targetId = targetId;
     lastViewed = targetId;
     const link = new PageLink(t.webSocketDebuggerUrl, (method, params) => {
@@ -306,6 +316,8 @@ class Viewer {
   private viewport: { width: number; height: number; dpr: number; mobile: boolean } | null = null;
   /** User agent da telefono gia' impostato su questa scheda */
   private mobileUa = false;
+  /** Lingua gia' impostata su questa scheda */
+  private uaLang: Lang | null = null;
 
   /**
    * La pagina si impagina alla misura della vista (sul telefono diventa una pagina da telefono)
@@ -322,14 +334,28 @@ class Viewer {
       await link.send('Emulation.clearDeviceMetricsOverride');
     }
     const mobile = v?.mobile === true;
-    if (mobile !== this.mobileUa) {
+    const lang = currentLang();
+    if (mobile !== this.mobileUa || lang !== this.uaLang) {
+      const prevMobile = this.mobileUa;
+      const prevLang = this.uaLang;
       this.mobileUa = mobile;
-      await link.send('Emulation.setUserAgentOverride', { userAgent: mobile ? MOBILE_USER_AGENT : USER_AGENT, acceptLanguage: 'it-IT,it' });
-      await link.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
-      // La versione giusta del sito arriva ricaricando (solo se e' gia' aperta una pagina vera)
+      this.uaLang = lang;
+      await link.send('Emulation.setUserAgentOverride', { userAgent: mobile ? MOBILE_USER_AGENT : USER_AGENT, acceptLanguage: ACCEPT_LANG[lang] });
+      if (mobile !== prevMobile) {
+        await link.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
+      }
+      // La versione giusta del sito arriva ricaricando (solo se e' gia' aperta una pagina vera, o la pagina iniziale al cambio lingua)
       const nav = await link.send('Page.getNavigationHistory');
-      const cur = nav?.entries?.[nav.currentIndex]?.url ?? '';
-      if (/^https?:/.test(cur) && !cur.includes('/browser-start')) await link.send('Page.reload');
+      const entry = nav?.entries?.[nav.currentIndex];
+      const cur = entry?.url ?? '';
+      const curTitle = entry?.title ?? '';
+      if (cur.includes('/browser-start')) {
+        if ((prevLang !== null && prevLang !== lang) || (curTitle && curTitle !== START_TEXTS[lang].title)) {
+          await link.send('Page.reload');
+        }
+      } else if (mobile !== prevMobile && /^https?:/.test(cur)) {
+        await link.send('Page.reload');
+      }
     }
     await link.send('Page.stopScreencast');
     await link.send('Page.startScreencast', {
@@ -342,6 +368,14 @@ class Viewer {
   }
 
   async handle(m: ClientMsg): Promise<void> {
+    if (m.type === 'lang') {
+      if (isLang(m.lang)) {
+        rememberLang(m.lang);
+        await this.applyViewport();
+        await this.refreshTabs();
+      }
+      return;
+    }
     if (m.type === 'viewport') {
       const width = Math.round(Number(m.width));
       const height = Math.round(Number(m.height));
@@ -463,6 +497,7 @@ export function browserUpgrade(
           clearTimeout(timer);
           const access = checkAccess(clientIp(req), String(m.token ?? ''));
           if (access !== 'ok') return ws.close(4001, access === 'blocked' ? 'blocked' : 'denied');
+          if (isLang(m.lang)) rememberLang(m.lang);
           viewer = new Viewer(ws);
           viewer.start().catch((err) => {
             ws.send(JSON.stringify({ type: 'error', message: err instanceof Error ? err.message : String(err) }));
@@ -481,18 +516,65 @@ export function browserUpgrade(
   };
 }
 
-const QUICK_LINKS: [string, string][] = [
-  ['Google', 'https://www.google.com'],
-  ['DuckDuckGo', 'https://duckduckgo.com'],
-  ['GitHub', 'https://github.com'],
-  ['YouTube', 'https://www.youtube.com'],
-  ['Wikipedia', 'https://it.wikipedia.org'],
-  ['AgiCloud', 'https://agicloud.dev'],
-];
+const START_TEXTS: Record<
+  Lang,
+  { title: string; heading: string; desc: string; searchPlaceholder: string; searchBtn: string; wikiUrl: string }
+> = {
+  it: {
+    title: 'Nuova scheda',
+    heading: 'Browser condiviso',
+    desc: "Lo vedi tu e lo usa l'agente: cerca qualcosa o apri un sito.",
+    searchPlaceholder: 'Cerca sul web',
+    searchBtn: 'Cerca',
+    wikiUrl: 'https://it.wikipedia.org',
+  },
+  en: {
+    title: 'New tab',
+    heading: 'Shared browser',
+    desc: 'You see it and the agent uses it: search for something or open a site.',
+    searchPlaceholder: 'Search the web',
+    searchBtn: 'Search',
+    wikiUrl: 'https://en.wikipedia.org',
+  },
+  de: {
+    title: 'Neuer Tab',
+    heading: 'Gemeinsamer Browser',
+    desc: 'Du siehst ihn und der Agent nutzt ihn: Suche etwas oder öffne eine Website.',
+    searchPlaceholder: 'Im Web suchen',
+    searchBtn: 'Suchen',
+    wikiUrl: 'https://de.wikipedia.org',
+  },
+  cs: {
+    title: 'Nová karta',
+    heading: 'Sdílený prohlížeč',
+    desc: 'Vidíš ho ty a používá ho agent: něco vyhledej nebo otevři web.',
+    searchPlaceholder: 'Hledat na webu',
+    searchBtn: 'Hledat',
+    wikiUrl: 'https://cs.wikipedia.org',
+  },
+  ru: {
+    title: 'Новая вкладка',
+    heading: 'Общий браузер',
+    desc: 'Его видите вы и использует агент: найдите что-нибудь или откройте сайт.',
+    searchPlaceholder: 'Поиск в интернете',
+    searchBtn: 'Найти',
+    wikiUrl: 'https://ru.wikipedia.org',
+  },
+};
 
-const START_PAGE = `<!doctype html>
-<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nuova scheda</title>
+export function startPage(lang: Lang = currentLang()): string {
+  const s = START_TEXTS[lang];
+  const links: [string, string][] = [
+    ['Google', 'https://www.google.com'],
+    ['DuckDuckGo', 'https://duckduckgo.com'],
+    ['GitHub', 'https://github.com'],
+    ['YouTube', 'https://www.youtube.com'],
+    ['Wikipedia', s.wikiUrl],
+    ['AgiCloud', 'https://agicloud.dev'],
+  ];
+  return `<!doctype html>
+<html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${s.title}</title>
 <style>
   :root { color-scheme: light dark; --bg:#f7f8fb; --card:#fff; --text:#121620; --muted:#4a5263; --accent:#0b6bcb; --border:#d5dae3; }
   @media (prefers-color-scheme: dark) { :root { --bg:#0b0f17; --card:#121826; --text:#e8ecf3; --muted:#a3adbf; --accent:#5cb1ff; --border:#2b3548; } }
@@ -511,15 +593,16 @@ const START_PAGE = `<!doctype html>
   a:hover, a:focus { border-color:var(--accent); }
 </style></head>
 <body><main>
-  <h1>Browser condiviso</h1>
-  <p>Lo vedi tu e lo usa l'agente: cerca qualcosa o apri un sito.</p>
+  <h1>${s.heading}</h1>
+  <p>${s.desc}</p>
   <form action="https://duckduckgo.com/" method="get" role="search">
-    <label for="q" style="position:absolute;left:-9999px">Cerca sul web</label>
-    <input id="q" name="q" placeholder="Cerca sul web" autofocus autocomplete="off">
-    <button type="submit">Cerca</button>
+    <label for="q" style="position:absolute;left:-9999px">${s.searchPlaceholder}</label>
+    <input id="q" name="q" placeholder="${s.searchPlaceholder}" autofocus autocomplete="off">
+    <button type="submit">${s.searchBtn}</button>
   </form>
-  <ul>${QUICK_LINKS.map(([n, u]) => `<li><a href="${u}">${n}</a></li>`).join('')}</ul>
+  <ul>${links.map(([n, u]) => `<li><a href="${u}">${n}</a></li>`).join('')}</ul>
 </main></body></html>`;
+}
 
 /** Pagina iniziale delle schede nuove e screenshot della scheda guardata */
 export function registerBrowserStart(app: Hono<any>): void {
@@ -529,6 +612,7 @@ export function registerBrowserStart(app: Hono<any>): void {
   });
   app.get('/browser-start', (c) => {
     c.header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action https:; base-uri 'none'");
-    return c.html(START_PAGE);
+    const q = c.req.query('lang');
+    return c.html(startPage(isLang(q) ? q : currentLang()));
   });
 }

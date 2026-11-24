@@ -3,7 +3,7 @@
 // Si puo' aprire anche in una finestra a parte (#/browser/popup).
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react';
 import { currentToken } from './api';
-import { useT } from './i18n';
+import { getLang, useT } from './i18n';
 
 interface Tab {
   id: string;
@@ -29,6 +29,7 @@ const SPECIAL = new Set(['Enter', 'Backspace', 'Tab', 'Escape', 'Delete', 'Arrow
 
 export function BrowserView({ popup = false }: { popup?: boolean }) {
   const t = useT();
+  const lang = getLang();
   const id = useId();
   const ws = useRef<WebSocket | null>(null);
   const img = useRef<HTMLImageElement>(null);
@@ -62,7 +63,7 @@ export function BrowserView({ popup = false }: { popup?: boolean }) {
       ws.current = sock;
       setConn('connecting');
       sock.onopen = () => {
-        sock.send(JSON.stringify({ type: 'auth', token: currentToken() }));
+        sock.send(JSON.stringify({ type: 'auth', token: currentToken(), lang: getLang() }));
         if (lastViewport.current) sock.send(JSON.stringify(lastViewport.current));
       };
       sock.onmessage = (ev) => {
@@ -93,6 +94,10 @@ export function BrowserView({ popup = false }: { popup?: boolean }) {
       ws.current?.close();
     };
   }, []);
+
+  useEffect(() => {
+    if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify({ type: 'lang', lang }));
+  }, [lang]);
 
   // La pagina prende la misura della vista (divisa per lo zoom): riempie lo spazio, e sul telefono
   // i siti si impaginano da telefono. Si rimanda quando cambia la finestra o lo zoom.
